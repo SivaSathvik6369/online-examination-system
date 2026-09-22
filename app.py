@@ -51,51 +51,15 @@ HTML_TEMPLATE = '''
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
         }
         h1 { font-size: 24px; color: var(--primary); }
         
-        /* Prominent Live Ticking Timer Box */
-        .live-timer-badge {
-            background: #fef2f2;
-            border: 2px solid #ef4444;
-            color: #991b1b;
-            padding: 8px 16px;
-            border-radius: 999px;
-            font-weight: 700;
-            font-size: 15px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
-        }
-        .blinking-dot {
-            width: 10px;
-            height: 10px;
-            background-color: #ef4444;
-            border-radius: 50%;
-            display: inline-block;
-            animation: blink 1s infinite;
-        }
-        @keyframes blink {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.3; transform: scale(0.8); }
-        }
-        .timer-display {
-            font-family: "Courier New", Courier, monospace;
-            font-size: 20px;
-            font-weight: 800;
-            color: #b91c1c;
-            letter-spacing: 1px;
-        }
-
         .user-pill {
             background: #f1f5f9;
             padding: 6px 14px;
             border-radius: 20px;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 600;
         }
         .form-group { margin-bottom: 20px; }
         label { display: block; font-weight: 600; margin-bottom: 8px; }
@@ -123,6 +87,7 @@ HTML_TEMPLATE = '''
         .btn-logout { background: #ef4444; margin-left: 10px; font-size: 13px; padding: 6px 14px; }
         .btn-logout:hover { background: #dc2626; }
         
+        /* Single Sticky Exam Timer */
         .exam-banner {
             display: flex;
             justify-content: space-between;
@@ -135,6 +100,39 @@ HTML_TEMPLATE = '''
             padding: 14px 0;
             border-bottom: 2px solid #e2e8f0;
         }
+        .live-timer-badge {
+            background: #fef2f2;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+            padding: 10px 20px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 15px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 2px 10px rgba(239, 68, 68, 0.15);
+        }
+        .blinking-dot {
+            width: 12px;
+            height: 12px;
+            background-color: #ef4444;
+            border-radius: 50%;
+            display: inline-block;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.85); }
+        }
+        .timer-display {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 24px;
+            font-weight: 800;
+            color: #b91c1c;
+            letter-spacing: 1px;
+        }
+
         .question-card {
             background: #f8fafc;
             border: 1px solid var(--border);
@@ -194,29 +192,21 @@ HTML_TEMPLATE = '''
         <header>
             <div>
                 <h1>{{ system_name }}</h1>
-                <small style="color: var(--muted);">Pass Mark: {{ pass_pct }}% | Standard Duration: {{ duration }} mins</small>
+                <small style="color: var(--muted);">Qualifying Mark: {{ pass_pct }}% | Duration: {{ duration }} minutes</small>
             </div>
             
-            <div style="display:flex; align-items:center; gap: 12px;">
-                <div class="live-timer-badge">
-                    <span class="blinking-dot"></span>
-                    <span>TIMER:</span>
-                    <span class="timer-display">59:59</span>
-                </div>
-
-                {% if user %}
-                <div style="display:flex; align-items:center;">
-                    <span class="user-pill">👤 {{ user.name }}</span>
-                    <a href="/logout" class="btn btn-logout">Logout</a>
-                </div>
-                {% endif %}
+            {% if user %}
+            <div style="display:flex; align-items:center;">
+                <span class="user-pill">👤 {{ user.name }} ({{ user.role }})</span>
+                <a href="/logout" class="btn btn-logout">Logout</a>
             </div>
+            {% endif %}
         </header>
 
         {% if page == "login" %}
         <div style="max-width: 500px; margin: 0 auto;">
-            <h2 style="margin-bottom: 12px;">Student / Proctor Portal</h2>
-            <p style="color: var(--muted); margin-bottom: 16px;">Select your student identity to begin:</p>
+            <h2 style="margin-bottom: 12px;">Student / Proctor Login</h2>
+            <p style="color: var(--muted); margin-bottom: 16px;">Select candidate identity to start exam:</p>
             
             <div class="students-grid">
                 <a href="/fast-login?user=siva" class="student-chip">🎓 Siva Sathvik</a>
@@ -248,15 +238,16 @@ HTML_TEMPLATE = '''
 
         {% elif page == "exam" %}
         <div>
+            <!-- ONLY ONE EXAM TIMER HERE: STARTS ONLY AFTER LOGIN -->
             <div class="exam-banner">
                 <div>
-                    <h2>Online Examination Assessment</h2>
-                    <small style="color: var(--muted);">All questions are mandatory</small>
+                    <h2>Online Examination</h2>
+                    <small style="color: var(--muted);">Candidate: <strong>{{ user.name }}</strong></small>
                 </div>
-                <div class="live-timer-badge" style="background:#fee2e2; padding: 10px 20px;">
+                <div class="live-timer-badge">
                     <span class="blinking-dot"></span>
-                    <span>EXAM TIME REMAINING:</span>
-                    <span class="timer-display" style="font-size: 24px;">59:59</span>
+                    <span>TIME LEFT:</span>
+                    <span id="examTimerDisplay" class="timer-display">{{ duration }}:00</span>
                 </div>
             </div>
 
@@ -274,6 +265,36 @@ HTML_TEMPLATE = '''
                 {% endfor %}
                 <button type="submit" class="btn" style="width: 100%; font-size: 16px; padding: 14px;">Submit Examination</button>
             </form>
+
+            <script>
+                // Timer starts fresh right after login on the exam page
+                (function() {
+                    let totalSeconds = {{ duration }} * 60;
+                    const timerDisplay = document.getElementById("examTimerDisplay");
+                    const form = document.getElementById("examForm");
+
+                    function updateClock() {
+                        if (totalSeconds <= 0) {
+                            clearInterval(timerInterval);
+                            timerDisplay.innerText = "00:00";
+                            alert("Time is up! Submitting your answers automatically.");
+                            form.submit();
+                            return;
+                        }
+
+                        totalSeconds--;
+
+                        const mins = Math.floor(totalSeconds / 60);
+                        const secs = totalSeconds % 60;
+                        const formatted = String(mins).padStart(2, '0') + ":" + String(secs).padStart(2, '0');
+                        timerDisplay.innerText = formatted;
+                    }
+
+                    // Tick immediately so it changes from 60:00 to 59:59 right away
+                    updateClock();
+                    const timerInterval = setInterval(updateClock, 1000);
+                })();
+            </script>
         </div>
 
         {% elif page == "result" %}
@@ -297,55 +318,11 @@ HTML_TEMPLATE = '''
                 Grading evaluated accurately using the <code>scoring.py</code> engine.
             </p>
 
-            <a href="/reset-timer" class="btn">Retake Exam (Reset Timer)</a>
+            <a href="/exam" class="btn">Retake Exam</a>
             <a href="/logout" class="btn btn-logout">Sign Out</a>
         </div>
         {% endif %}
     </div>
-
-    <!-- Active Real-Time Ticking Countdown Engine -->
-    <script>
-        (function() {
-            const initialMinutes = {{ duration }};
-            let totalSeconds = sessionStorage.getItem("exam_time_remaining");
-            
-            if (!totalSeconds || isNaN(totalSeconds) || parseInt(totalSeconds, 10) <= 0) {
-                totalSeconds = initialMinutes * 60;
-                sessionStorage.setItem("exam_time_remaining", totalSeconds);
-            } else {
-                totalSeconds = parseInt(totalSeconds, 10);
-            }
-
-            function tick() {
-                if (totalSeconds <= 0) {
-                    totalSeconds = 0;
-                    sessionStorage.removeItem("exam_time_remaining");
-                    document.querySelectorAll(".timer-display").forEach(el => el.innerText = "00:00");
-                    const form = document.getElementById("examForm");
-                    if (form) {
-                        alert("Time has expired! Automatically submitting your assessment.");
-                        form.submit();
-                    }
-                    return;
-                }
-
-                totalSeconds--;
-                sessionStorage.setItem("exam_time_remaining", totalSeconds);
-
-                const mins = Math.floor(totalSeconds / 60);
-                const secs = totalSeconds % 60;
-                const formatted = String(mins).padStart(2, '0') + ":" + String(secs).padStart(2, '0');
-
-                document.querySelectorAll(".timer-display").forEach(el => {
-                    el.innerText = formatted;
-                });
-            }
-
-            // Immediately execute tick so it visibly decrements right upon page load
-            tick();
-            setInterval(tick, 1000);
-        })();
-    </script>
 </body>
 </html>
 '''
@@ -384,15 +361,6 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("index"))
-
-@app.route("/reset-timer")
-def reset_timer():
-    return '''
-    <script>
-        sessionStorage.removeItem("exam_time_remaining");
-        window.location.href = "/exam";
-    </script>
-    '''
 
 @app.route("/exam")
 def exam():
