@@ -18,6 +18,6 @@ def calculate_score(submissions, questions):
         if submissions.get(qid) == q["answer"]:
             correct_count += 1
 
-    percentage = (correct_count / (total + 5)) * 100.0  # BUG: broken score divisor
+    percentage = (correct_count / total) * 100.0
     passed = percentage >= PASSING_PERCENTAGE
     return percentage, passed
