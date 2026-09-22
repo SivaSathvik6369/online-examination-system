@@ -1,9 +1,9 @@
 ﻿import sys
-from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session, flash
+from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
 from config import SYSTEM_NAME, DEFAULT_EXAM_DURATION_MINS, PASSING_PERCENTAGE
 from questions import get_all_questions
 from scoring import calculate_score
-from auth import users_db, authenticate, register_student, ALLOWED_EMAIL_DOMAIN
+from auth import users_db, authenticate, register_student
 
 app = Flask(__name__)
 app.secret_key = "exam_secret_session_key_vitap"
@@ -26,7 +26,6 @@ HTML_TEMPLATE = '''
             --success: #16a34a;
             --danger: #dc2626;
             --border: #cbd5e1;
-            --vit-red: #b91c1c;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -53,18 +52,7 @@ HTML_TEMPLATE = '''
             justify-content: space-between;
             align-items: center;
         }
-        h1 { font-size: 22px; color: var(--primary); }
-        .vit-domain-badge {
-            display: inline-block;
-            background: #fef2f2;
-            color: var(--vit-red);
-            padding: 4px 12px;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 700;
-            border: 1px solid #fecaca;
-            margin-top: 4px;
-        }
+        h1 { font-size: 24px; color: var(--primary); }
         .user-pill {
             background: #f1f5f9;
             padding: 6px 14px;
@@ -103,8 +91,6 @@ HTML_TEMPLATE = '''
         .btn:hover { background: var(--primary-hover); }
         .btn-logout { background: #ef4444; margin-left: 10px; font-size: 13px; padding: 6px 14px; }
         .btn-logout:hover { background: #dc2626; }
-        .btn-secondary { background: #64748b; }
-        .btn-secondary:hover { background: #475569; }
 
         /* Auth Tabs */
         .tab-nav {
@@ -258,7 +244,6 @@ HTML_TEMPLATE = '''
         <header>
             <div>
                 <h1>{{ system_name }}</h1>
-                <div class="vit-domain-badge">🔒 Authorized Domain: {{ allowed_domain }}</div>
             </div>
             
             {% if user %}
@@ -312,20 +297,20 @@ HTML_TEMPLATE = '''
                 <form method="POST" action="/login">
                     <div class="form-group">
                         <label>Email or Username</label>
-                        <input type="text" name="login_id" placeholder="e.g. name@vitapstudent.ac.in or username" required>
+                        <input type="text" name="login_id" placeholder="Enter email or username" required>
                     </div>
                     <div class="form-group">
                         <label>Password</label>
                         <input type="password" name="password" placeholder="Enter password" required>
                     </div>
-                    <button type="submit" class="btn" style="width: 100%;">Sign In to Examination</button>
+                    <button type="submit" class="btn" style="width: 100%;">Sign In</button>
                 </form>
             </div>
 
             <!-- REGISTER TAB -->
             <div id="registerTab" style="display: {{ 'block' if tab == 'register' else 'none' }};">
                 <p style="color: var(--muted); margin-bottom: 16px; font-size: 14px;">
-                    Register with your official VIT-AP university student email address.
+                    Create a new student examination account:
                 </p>
 
                 <form method="POST" action="/register">
@@ -334,19 +319,18 @@ HTML_TEMPLATE = '''
                         <input type="text" name="name" placeholder="e.g. Rahul Sharma" required>
                     </div>
                     <div class="form-group">
-                        <label>Official Student Email (Must end with <code>{{ allowed_domain }}</code>)</label>
-                        <input type="email" name="email" placeholder="e.g. student.22bce1001@vitapstudent.ac.in" required>
-                        <small style="color: var(--muted); font-size: 12px;">Only <strong>@vitapstudent.ac.in</strong> domain is permitted.</small>
+                        <label>Email Address</label>
+                        <input type="email" name="email" placeholder="Enter your email address" required>
                     </div>
                     <div class="form-group">
                         <label>Username</label>
-                        <input type="text" name="username" placeholder="Choose a unique username" required>
+                        <input type="text" name="username" placeholder="Choose a username" required>
                     </div>
                     <div class="form-group">
                         <label>Password</label>
                         <input type="password" name="password" placeholder="Create password" required>
                     </div>
-                    <button type="submit" class="btn" style="width: 100%; background: #059669;">Register Student Account</button>
+                    <button type="submit" class="btn" style="width: 100%; background: #059669;">Register Account</button>
                 </form>
             </div>
         </div>
@@ -373,7 +357,7 @@ HTML_TEMPLATE = '''
             <div class="exam-banner">
                 <div>
                     <h2>Online Examination</h2>
-                    <small style="color: var(--muted);">Candidate: <strong>{{ user.name }}</strong> ({{ user.email or user.username }})</small>
+                    <small style="color: var(--muted);">Candidate: <strong>{{ user.name }}</strong></small>
                 </div>
                 <div class="live-timer-badge">
                     <span class="blinking-dot"></span>
@@ -398,7 +382,6 @@ HTML_TEMPLATE = '''
             </form>
 
             <script>
-                // Timer starts fresh right after login on the exam page
                 (function() {
                     let totalSeconds = {{ duration }} * 60;
                     const timerDisplay = document.getElementById("examTimerDisplay");
@@ -430,7 +413,7 @@ HTML_TEMPLATE = '''
         {% elif page == "result" %}
         <div class="result-box">
             <h2>Assessment Evaluation Result</h2>
-            <p style="color: var(--muted); margin-top: 4px;">Candidate: <strong>{{ user.name }}</strong> ({{ user.email or user.username }})</p>
+            <p style="color: var(--muted); margin-top: 4px;">Candidate: <strong>{{ user.name }}</strong></p>
             
             <div class="result-score {{ 'passed' if passed else 'failed' }}">
                 {{ score }}%
@@ -467,7 +450,6 @@ def index():
             pass_pct=PASSING_PERCENTAGE,
             page="auth",
             tab="login",
-            allowed_domain=ALLOWED_EMAIL_DOMAIN,
             error=request.args.get("error"),
             message=request.args.get("message"),
             user=None
@@ -490,7 +472,6 @@ def register():
             pass_pct=PASSING_PERCENTAGE,
             page="auth",
             tab="register",
-            allowed_domain=ALLOWED_EMAIL_DOMAIN,
             error=msg,
             message=None,
             user=None
@@ -514,8 +495,7 @@ def login():
             pass_pct=PASSING_PERCENTAGE,
             page="auth",
             tab="login",
-            allowed_domain=ALLOWED_EMAIL_DOMAIN,
-            error="Invalid email/username or password. Note: Only registered VIT-AP accounts can sign in.",
+            error="Invalid credentials. Please verify your email/username and password.",
             message=None,
             user=None
         )
@@ -549,7 +529,6 @@ def exam():
         duration=DEFAULT_EXAM_DURATION_MINS,
         pass_pct=PASSING_PERCENTAGE,
         page="exam",
-        allowed_domain=ALLOWED_EMAIL_DOMAIN,
         user=session["user"],
         questions=questions
     )
@@ -572,7 +551,6 @@ def submit():
         duration=DEFAULT_EXAM_DURATION_MINS,
         pass_pct=PASSING_PERCENTAGE,
         page="result",
-        allowed_domain=ALLOWED_EMAIL_DOMAIN,
         user=session["user"],
         score=round(score, 1),
         passed=passed
