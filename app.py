@@ -1,12 +1,12 @@
 ﻿import sys
-from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session
+from flask import Flask, request, jsonify, render_template_string, redirect, url_for, session, flash
 from config import SYSTEM_NAME, DEFAULT_EXAM_DURATION_MINS, PASSING_PERCENTAGE
 from questions import get_all_questions
 from scoring import calculate_score
-from auth import users_db, authenticate
+from auth import users_db, authenticate, register_student, ALLOWED_EMAIL_DOMAIN
 
 app = Flask(__name__)
-app.secret_key = "exam_secret_session_key"
+app.secret_key = "exam_secret_session_key_vitap"
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
@@ -17,15 +17,16 @@ HTML_TEMPLATE = '''
     <title>{{ system_name }}</title>
     <style>
         :root {
-            --primary: #2563eb;
+            --primary: #1e40af;
             --primary-hover: #1d4ed8;
             --bg: #f8fafc;
             --card: #ffffff;
-            --text: #1e293b;
+            --text: #0f172a;
             --muted: #64748b;
             --success: #16a34a;
             --danger: #dc2626;
-            --border: #e2e8f0;
+            --border: #cbd5e1;
+            --vit-red: #b91c1c;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -33,7 +34,7 @@ HTML_TEMPLATE = '''
             background: var(--bg);
             color: var(--text);
             line-height: 1.5;
-            padding: 20px;
+            padding: 24px;
         }
         .container {
             max-width: 850px;
@@ -52,8 +53,18 @@ HTML_TEMPLATE = '''
             justify-content: space-between;
             align-items: center;
         }
-        h1 { font-size: 24px; color: var(--primary); }
-        
+        h1 { font-size: 22px; color: var(--primary); }
+        .vit-domain-badge {
+            display: inline-block;
+            background: #fef2f2;
+            color: var(--vit-red);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 700;
+            border: 1px solid #fecaca;
+            margin-top: 4px;
+        }
         .user-pill {
             background: #f1f5f9;
             padding: 6px 14px;
@@ -61,14 +72,19 @@ HTML_TEMPLATE = '''
             font-size: 14px;
             font-weight: 600;
         }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; font-weight: 600; margin-bottom: 8px; }
-        select, input[type="text"], input[type="password"] {
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+        input[type="text"], input[type="email"], input[type="password"] {
             width: 100%;
-            padding: 12px;
+            padding: 11px 14px;
             border: 1px solid var(--border);
             border-radius: 8px;
             font-size: 15px;
+        }
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.15);
         }
         .btn {
             display: inline-block;
@@ -82,11 +98,55 @@ HTML_TEMPLATE = '''
             cursor: pointer;
             text-decoration: none;
             transition: background 0.2s;
+            text-align: center;
         }
         .btn:hover { background: var(--primary-hover); }
         .btn-logout { background: #ef4444; margin-left: 10px; font-size: 13px; padding: 6px 14px; }
         .btn-logout:hover { background: #dc2626; }
+        .btn-secondary { background: #64748b; }
+        .btn-secondary:hover { background: #475569; }
+
+        /* Auth Tabs */
+        .tab-nav {
+            display: flex;
+            gap: 12px;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            font-weight: 700;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-size: 15px;
+            color: var(--muted);
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
         
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+        }
+        .alert-success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #86efac;
+        }
+
         /* Single Sticky Exam Timer */
         .exam-banner {
             display: flex;
@@ -166,16 +226,18 @@ HTML_TEMPLATE = '''
         }
         .passed { color: var(--success); }
         .failed { color: var(--danger); }
+        
         .students-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 12px;
-            margin-top: 16px;
+            gap: 10px;
+            margin-top: 14px;
+            margin-bottom: 24px;
         }
         .student-chip {
             background: #f1f5f9;
-            padding: 14px;
-            border-radius: 10px;
+            padding: 12px;
+            border-radius: 8px;
             text-align: center;
             border: 1px solid var(--border);
             cursor: pointer;
@@ -183,7 +245,11 @@ HTML_TEMPLATE = '''
             transition: all 0.2s;
             text-decoration: none;
             color: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
+        .student-chip small { color: var(--muted); font-size: 11px; font-weight: normal; }
         .student-chip:hover { border-color: var(--primary); background: #eff6ff; }
     </style>
 </head>
@@ -192,49 +258,114 @@ HTML_TEMPLATE = '''
         <header>
             <div>
                 <h1>{{ system_name }}</h1>
-                <small style="color: var(--muted);">Qualifying Mark: {{ pass_pct }}% | Duration: {{ duration }} minutes</small>
+                <div class="vit-domain-badge">🔒 Authorized Domain: {{ allowed_domain }}</div>
             </div>
             
             {% if user %}
             <div style="display:flex; align-items:center;">
-                <span class="user-pill">👤 {{ user.name }} ({{ user.role }})</span>
+                <span class="user-pill">👤 {{ user.name }} ({{ user.email or user.username }})</span>
                 <a href="/logout" class="btn btn-logout">Logout</a>
             </div>
             {% endif %}
         </header>
 
-        {% if page == "login" %}
-        <div style="max-width: 500px; margin: 0 auto;">
-            <h2 style="margin-bottom: 12px;">Student / Proctor Login</h2>
-            <p style="color: var(--muted); margin-bottom: 16px;">Select candidate identity to start exam:</p>
-            
-            <div class="students-grid">
-                <a href="/fast-login?user=siva" class="student-chip">🎓 Siva Sathvik</a>
-                <a href="/fast-login?user=saketh" class="student-chip">🎓 Saketh</a>
-                <a href="/fast-login?user=shveni" class="student-chip">🎓 Shveni</a>
-                <a href="/fast-login?user=sahithi" class="student-chip">🎓 Sahithi</a>
+        {% if error %}
+        <div class="alert alert-error">⚠️ {{ error }}</div>
+        {% endif %}
+        {% if message %}
+        <div class="alert alert-success">✅ {{ message }}</div>
+        {% endif %}
+
+        {% if page == "auth" %}
+        <div style="max-width: 520px; margin: 0 auto;">
+            <div class="tab-nav">
+                <button type="button" class="tab-btn {{ 'active' if tab == 'login' else '' }}" onclick="switchTab('login')">Sign In</button>
+                <button type="button" class="tab-btn {{ 'active' if tab == 'register' else '' }}" onclick="switchTab('register')">Register New Student</button>
             </div>
 
-            <div style="text-align: center; margin: 24px 0; color: var(--muted);">— OR CREDENTIAL LOGIN —</div>
+            <!-- LOGIN TAB -->
+            <div id="loginTab" style="display: {{ 'block' if tab == 'login' else 'none' }};">
+                <div style="margin-bottom: 16px;">
+                    <p style="color: var(--muted); font-size: 14px;">One-click student login:</p>
+                    <div class="students-grid">
+                        <a href="/fast-login?user=siva" class="student-chip">
+                            <strong>Siva Sathvik</strong>
+                            <small>siva.sathvik@vitapstudent.ac.in</small>
+                        </a>
+                        <a href="/fast-login?user=saketh" class="student-chip">
+                            <strong>Saketh</strong>
+                            <small>saketh.k@vitapstudent.ac.in</small>
+                        </a>
+                        <a href="/fast-login?user=shveni" class="student-chip">
+                            <strong>Shveni</strong>
+                            <small>shveni.r@vitapstudent.ac.in</small>
+                        </a>
+                        <a href="/fast-login?user=sahithi" class="student-chip">
+                            <strong>Sahithi</strong>
+                            <small>sahithi.m@vitapstudent.ac.in</small>
+                        </a>
+                    </div>
+                </div>
 
-            <form method="POST" action="/login">
-                <div class="form-group">
-                    <label>Select User</label>
-                    <select name="username">
-                        <option value="siva">siva (Siva Sathvik)</option>
-                        <option value="saketh">saketh (Saketh)</option>
-                        <option value="shveni">shveni (Shveni)</option>
-                        <option value="sahithi">sahithi (Sahithi)</option>
-                        <option value="proctor1">proctor1 (Prof. Smith - Proctor)</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" name="password" value="password" required>
-                </div>
-                <button type="submit" class="btn" style="width: 100%;">Sign In & Start Exam</button>
-            </form>
+                <div style="text-align: center; margin: 16px 0; color: var(--muted); font-size: 13px;">— OR ENTER CREDENTIALS —</div>
+
+                <form method="POST" action="/login">
+                    <div class="form-group">
+                        <label>Email or Username</label>
+                        <input type="text" name="login_id" placeholder="e.g. name@vitapstudent.ac.in or username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" name="password" placeholder="Enter password" required>
+                    </div>
+                    <button type="submit" class="btn" style="width: 100%;">Sign In to Examination</button>
+                </form>
+            </div>
+
+            <!-- REGISTER TAB -->
+            <div id="registerTab" style="display: {{ 'block' if tab == 'register' else 'none' }};">
+                <p style="color: var(--muted); margin-bottom: 16px; font-size: 14px;">
+                    Register with your official VIT-AP university student email address.
+                </p>
+
+                <form method="POST" action="/register">
+                    <div class="form-group">
+                        <label>Full Name</label>
+                        <input type="text" name="name" placeholder="e.g. Rahul Sharma" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Official Student Email (Must end with <code>{{ allowed_domain }}</code>)</label>
+                        <input type="email" name="email" placeholder="e.g. student.22bce1001@vitapstudent.ac.in" required>
+                        <small style="color: var(--muted); font-size: 12px;">Only <strong>@vitapstudent.ac.in</strong> domain is permitted.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" name="username" placeholder="Choose a unique username" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" name="password" placeholder="Create password" required>
+                    </div>
+                    <button type="submit" class="btn" style="width: 100%; background: #059669;">Register Student Account</button>
+                </form>
+            </div>
         </div>
+
+        <script>
+            function switchTab(tab) {
+                if (tab === 'login') {
+                    document.getElementById('loginTab').style.display = 'block';
+                    document.getElementById('registerTab').style.display = 'none';
+                    document.querySelectorAll('.tab-btn')[0].classList.add('active');
+                    document.querySelectorAll('.tab-btn')[1].classList.remove('active');
+                } else {
+                    document.getElementById('loginTab').style.display = 'none';
+                    document.getElementById('registerTab').style.display = 'block';
+                    document.querySelectorAll('.tab-btn')[0].classList.remove('active');
+                    document.querySelectorAll('.tab-btn')[1].classList.add('active');
+                }
+            }
+        </script>
 
         {% elif page == "exam" %}
         <div>
@@ -242,7 +373,7 @@ HTML_TEMPLATE = '''
             <div class="exam-banner">
                 <div>
                     <h2>Online Examination</h2>
-                    <small style="color: var(--muted);">Candidate: <strong>{{ user.name }}</strong></small>
+                    <small style="color: var(--muted);">Candidate: <strong>{{ user.name }}</strong> ({{ user.email or user.username }})</small>
                 </div>
                 <div class="live-timer-badge">
                     <span class="blinking-dot"></span>
@@ -277,7 +408,7 @@ HTML_TEMPLATE = '''
                         if (totalSeconds <= 0) {
                             clearInterval(timerInterval);
                             timerDisplay.innerText = "00:00";
-                            alert("Time is up! Submitting your answers automatically.");
+                            alert("Time has expired! Submitting your answers automatically.");
                             form.submit();
                             return;
                         }
@@ -290,7 +421,6 @@ HTML_TEMPLATE = '''
                         timerDisplay.innerText = formatted;
                     }
 
-                    // Tick immediately so it changes from 60:00 to 59:59 right away
                     updateClock();
                     const timerInterval = setInterval(updateClock, 1000);
                 })();
@@ -300,7 +430,7 @@ HTML_TEMPLATE = '''
         {% elif page == "result" %}
         <div class="result-box">
             <h2>Assessment Evaluation Result</h2>
-            <p style="color: var(--muted); margin-top: 4px;">Candidate: <strong>{{ user.name }}</strong></p>
+            <p style="color: var(--muted); margin-top: 4px;">Candidate: <strong>{{ user.name }}</strong> ({{ user.email or user.username }})</p>
             
             <div class="result-score {{ 'passed' if passed else 'failed' }}">
                 {{ score }}%
@@ -315,7 +445,7 @@ HTML_TEMPLATE = '''
             </h3>
 
             <p style="margin: 20px 0; color: var(--muted);">
-                Grading evaluated accurately using the <code>scoring.py</code> engine.
+                Answer key evaluated by <code>scoring.py</code> engine.
             </p>
 
             <a href="/exam" class="btn">Retake Exam</a>
@@ -335,27 +465,73 @@ def index():
             system_name=SYSTEM_NAME,
             duration=DEFAULT_EXAM_DURATION_MINS,
             pass_pct=PASSING_PERCENTAGE,
-            page="login",
+            page="auth",
+            tab="login",
+            allowed_domain=ALLOWED_EMAIL_DOMAIN,
+            error=request.args.get("error"),
+            message=request.args.get("message"),
             user=None
         )
     return redirect(url_for("exam"))
+
+@app.route("/register", methods=["POST"])
+def register():
+    name = request.form.get("name", "")
+    email = request.form.get("email", "")
+    username = request.form.get("username", "")
+    password = request.form.get("password", "")
+
+    success, msg = register_student(name, email, username, password)
+    if not success:
+        return render_template_string(
+            HTML_TEMPLATE,
+            system_name=SYSTEM_NAME,
+            duration=DEFAULT_EXAM_DURATION_MINS,
+            pass_pct=PASSING_PERCENTAGE,
+            page="auth",
+            tab="register",
+            allowed_domain=ALLOWED_EMAIL_DOMAIN,
+            error=msg,
+            message=None,
+            user=None
+        )
+    return redirect(url_for("index", message=msg))
+
+@app.route("/login", methods=["POST"])
+def login():
+    login_id = request.form.get("login_id", "")
+    password = request.form.get("password", "")
+    auth_result = authenticate(login_id, password)
+
+    if auth_result["authenticated"]:
+        session["user"] = auth_result
+        return redirect(url_for("exam"))
+    else:
+        return render_template_string(
+            HTML_TEMPLATE,
+            system_name=SYSTEM_NAME,
+            duration=DEFAULT_EXAM_DURATION_MINS,
+            pass_pct=PASSING_PERCENTAGE,
+            page="auth",
+            tab="login",
+            allowed_domain=ALLOWED_EMAIL_DOMAIN,
+            error="Invalid email/username or password. Note: Only registered VIT-AP accounts can sign in.",
+            message=None,
+            user=None
+        )
 
 @app.route("/fast-login")
 def fast_login():
     user_key = request.args.get("user", "siva")
     user = users_db.get(user_key)
     if user:
-        session["user"] = {"username": user_key, "name": user["name"], "role": user["role"]}
+        session["user"] = {
+            "username": user_key,
+            "name": user["name"],
+            "email": user.get("email"),
+            "role": user["role"]
+        }
     return redirect(url_for("exam"))
-
-@app.route("/login", methods=["POST"])
-def login():
-    username = request.form.get("username")
-    user = users_db.get(username)
-    if user:
-        session["user"] = {"username": username, "name": user["name"], "role": user["role"]}
-        return redirect(url_for("exam"))
-    return redirect(url_for("index"))
 
 @app.route("/logout")
 def logout():
@@ -373,6 +549,7 @@ def exam():
         duration=DEFAULT_EXAM_DURATION_MINS,
         pass_pct=PASSING_PERCENTAGE,
         page="exam",
+        allowed_domain=ALLOWED_EMAIL_DOMAIN,
         user=session["user"],
         questions=questions
     )
@@ -395,6 +572,7 @@ def submit():
         duration=DEFAULT_EXAM_DURATION_MINS,
         pass_pct=PASSING_PERCENTAGE,
         page="result",
+        allowed_domain=ALLOWED_EMAIL_DOMAIN,
         user=session["user"],
         score=round(score, 1),
         passed=passed
