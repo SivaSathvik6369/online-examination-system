@@ -117,10 +117,24 @@ HTML_TEMPLATE = '''
         .timer-box {
             background: #fef3c7;
             color: #92400e;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 14px;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 16px;
+            border: 1px solid #fde68a;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .timer-box.warning {
+            background: #fee2e2;
+            color: #b91c1c;
+            border-color: #fca5a5;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
         .result-box {
             text-align: center;
@@ -202,12 +216,18 @@ HTML_TEMPLATE = '''
 
         {% elif page == "exam" %}
         <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h2>Online Multiple-Choice Assessment</h2>
-                <span class="timer-box">⏱️ Exam Timer: {{ duration }}:00</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; position: sticky; top: 0; background: var(--card); z-index: 10; padding: 12px 0; border-bottom: 1px solid var(--border);">
+                <div>
+                    <h2>Online Multiple-Choice Assessment</h2>
+                    <small style="color: var(--muted);">Select the best answer for each question</small>
+                </div>
+                <div id="timerBox" class="timer-box">
+                    <span>⏱️ Time Remaining:</span>
+                    <span id="timerDisplay" style="font-family: monospace; font-size: 18px;">{{ duration }}:00</span>
+                </div>
             </div>
 
-            <form method="POST" action="/submit">
+            <form id="examForm" method="POST" action="/submit">
                 {% for q in questions %}
                 <div class="question-card">
                     <div class="question-title">Question {{ q.id }}: {{ q.question }}</div>
@@ -221,6 +241,41 @@ HTML_TEMPLATE = '''
                 {% endfor %}
                 <button type="submit" class="btn" style="width: 100%; font-size: 16px;">Submit Exam Assessment</button>
             </form>
+
+            <script>
+                // Live Running Countdown Timer
+                let totalSeconds = {{ duration }} * 60;
+                const timerDisplay = document.getElementById("timerDisplay");
+                const timerBox = document.getElementById("timerBox");
+                const examForm = document.getElementById("examForm");
+
+                function updateCountdown() {
+                    if (totalSeconds <= 0) {
+                        clearInterval(timerInterval);
+                        timerDisplay.innerText = "00:00";
+                        alert("Time is up! Your examination will be submitted automatically.");
+                        examForm.submit();
+                        return;
+                    }
+
+                    totalSeconds--;
+
+                    let minutes = Math.floor(totalSeconds / 60);
+                    let seconds = totalSeconds % 60;
+
+                    let formattedMin = String(minutes).padStart(2, '0');
+                    let formattedSec = String(seconds).padStart(2, '0');
+
+                    timerDisplay.innerText = ${formattedMin}:;
+
+                    // Warning state when less than 5 minutes remaining
+                    if (totalSeconds <= 300) {
+                        timerBox.classList.add("warning");
+                    }
+                }
+
+                const timerInterval = setInterval(updateCountdown, 1000);
+            </script>
         </div>
 
         {% elif page == "result" %}
