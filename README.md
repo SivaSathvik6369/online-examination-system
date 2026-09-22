@@ -2,8 +2,7 @@
 
 A robust platform for managing exams, administering student evaluations, and auto-grading assessments.
 
-## Modules
-- config.py: Core system configuration & settings
-- questions.py: Question bank and assessment definitions
-- scoring.py: Automated answer grading and score calculation
-- auth.py: Role-based authentication (Student & Proctor)
+## Instructions
+- Ensure you have a stable network before beginning.
+- Each exam has timed questions.
+- Results are computed automatically.
