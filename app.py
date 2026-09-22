@@ -33,15 +33,15 @@ HTML_TEMPLATE = '''
             background: var(--bg);
             color: var(--text);
             line-height: 1.5;
-            padding: 24px;
+            padding: 20px;
         }
         .container {
-            max-width: 800px;
+            max-width: 850px;
             margin: 0 auto;
             background: var(--card);
             border-radius: 16px;
             padding: 32px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
             border: 1px solid var(--border);
         }
         header {
@@ -51,16 +51,45 @@ HTML_TEMPLATE = '''
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
         }
         h1 { font-size: 24px; color: var(--primary); }
-        .badge {
-            background: #dbeafe;
-            color: var(--primary);
-            padding: 4px 12px;
+        
+        /* Prominent Live Ticking Timer Box */
+        .live-timer-badge {
+            background: #fef2f2;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+            padding: 8px 16px;
             border-radius: 999px;
-            font-size: 13px;
-            font-weight: 600;
+            font-weight: 700;
+            font-size: 15px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
         }
+        .blinking-dot {
+            width: 10px;
+            height: 10px;
+            background-color: #ef4444;
+            border-radius: 50%;
+            display: inline-block;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.8); }
+        }
+        .timer-display {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 20px;
+            font-weight: 800;
+            color: #b91c1c;
+            letter-spacing: 1px;
+        }
+
         .user-pill {
             background: #f1f5f9;
             padding: 6px 14px;
@@ -93,6 +122,19 @@ HTML_TEMPLATE = '''
         .btn:hover { background: var(--primary-hover); }
         .btn-logout { background: #ef4444; margin-left: 10px; font-size: 13px; padding: 6px 14px; }
         .btn-logout:hover { background: #dc2626; }
+        
+        .exam-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            position: sticky;
+            top: 0;
+            background: var(--card);
+            z-index: 10;
+            padding: 14px 0;
+            border-bottom: 2px solid #e2e8f0;
+        }
         .question-card {
             background: #f8fafc;
             border: 1px solid var(--border);
@@ -114,34 +156,13 @@ HTML_TEMPLATE = '''
         }
         .option-label:hover { border-color: var(--primary); background: #f0f7ff; }
         .option-label input { margin-right: 12px; }
-        .timer-box {
-            background: #fef3c7;
-            color: #92400e;
-            padding: 10px 18px;
-            border-radius: 10px;
-            font-weight: 700;
-            font-size: 16px;
-            border: 1px solid #fde68a;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .timer-box.warning {
-            background: #fee2e2;
-            color: #b91c1c;
-            border-color: #fca5a5;
-            animation: pulse 1s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
+
         .result-box {
             text-align: center;
             padding: 32px 16px;
         }
         .result-score {
-            font-size: 48px;
+            font-size: 52px;
             font-weight: 800;
             margin: 16px 0;
         }
@@ -155,13 +176,15 @@ HTML_TEMPLATE = '''
         }
         .student-chip {
             background: #f1f5f9;
-            padding: 12px;
-            border-radius: 8px;
+            padding: 14px;
+            border-radius: 10px;
             text-align: center;
             border: 1px solid var(--border);
             cursor: pointer;
             font-weight: 600;
             transition: all 0.2s;
+            text-decoration: none;
+            color: inherit;
         }
         .student-chip:hover { border-color: var(--primary); background: #eff6ff; }
     </style>
@@ -171,59 +194,69 @@ HTML_TEMPLATE = '''
         <header>
             <div>
                 <h1>{{ system_name }}</h1>
-                <span class="badge">Duration: {{ duration }} Mins | Pass: {{ pass_pct }}%</span>
+                <small style="color: var(--muted);">Pass Mark: {{ pass_pct }}% | Standard Duration: {{ duration }} mins</small>
             </div>
-            {% if user %}
-            <div style="display:flex; align-items:center;">
-                <span class="user-pill">👤 {{ user.name }} ({{ user.role }})</span>
-                <a href="/logout" class="btn btn-logout">Logout</a>
+            
+            <div style="display:flex; align-items:center; gap: 12px;">
+                <div class="live-timer-badge">
+                    <span class="blinking-dot"></span>
+                    <span>TIMER:</span>
+                    <span class="timer-display">59:59</span>
+                </div>
+
+                {% if user %}
+                <div style="display:flex; align-items:center;">
+                    <span class="user-pill">👤 {{ user.name }}</span>
+                    <a href="/logout" class="btn btn-logout">Logout</a>
+                </div>
+                {% endif %}
             </div>
-            {% endif %}
         </header>
 
         {% if page == "login" %}
-        <div style="max-width: 480px; margin: 0 auto;">
-            <h2 style="margin-bottom: 16px;">Student / Proctor Login</h2>
-            <p style="color: var(--muted); margin-bottom: 20px;">Click a student profile to fast-login:</p>
+        <div style="max-width: 500px; margin: 0 auto;">
+            <h2 style="margin-bottom: 12px;">Student / Proctor Portal</h2>
+            <p style="color: var(--muted); margin-bottom: 16px;">Select your student identity to begin:</p>
             
             <div class="students-grid">
-                <a href="/fast-login?user=siva" class="student-chip" style="text-decoration:none; color:inherit;">🎓 Siva Sathvik</a>
-                <a href="/fast-login?user=saketh" class="student-chip" style="text-decoration:none; color:inherit;">🎓 Saketh</a>
-                <a href="/fast-login?user=shveni" class="student-chip" style="text-decoration:none; color:inherit;">🎓 Shveni</a>
-                <a href="/fast-login?user=sahithi" class="student-chip" style="text-decoration:none; color:inherit;">🎓 Sahithi</a>
+                <a href="/fast-login?user=siva" class="student-chip">🎓 Siva Sathvik</a>
+                <a href="/fast-login?user=saketh" class="student-chip">🎓 Saketh</a>
+                <a href="/fast-login?user=shveni" class="student-chip">🎓 Shveni</a>
+                <a href="/fast-login?user=sahithi" class="student-chip">🎓 Sahithi</a>
             </div>
 
-            <div style="text-align: center; margin: 24px 0; color: var(--muted);">— OR LOGIN MANUALLY —</div>
+            <div style="text-align: center; margin: 24px 0; color: var(--muted);">— OR CREDENTIAL LOGIN —</div>
 
             <form method="POST" action="/login">
                 <div class="form-group">
-                    <label>Username</label>
+                    <label>Select User</label>
                     <select name="username">
                         <option value="siva">siva (Siva Sathvik)</option>
                         <option value="saketh">saketh (Saketh)</option>
                         <option value="shveni">shveni (Shveni)</option>
                         <option value="sahithi">sahithi (Sahithi)</option>
-                        <option value="proctor1">proctor1 (Prof. Smith)</option>
+                        <option value="proctor1">proctor1 (Prof. Smith - Proctor)</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Password</label>
                     <input type="password" name="password" value="password" required>
                 </div>
-                <button type="submit" class="btn" style="width: 100%;">Sign In to Exam</button>
+                <button type="submit" class="btn" style="width: 100%;">Sign In & Start Exam</button>
             </form>
         </div>
 
         {% elif page == "exam" %}
         <div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; position: sticky; top: 0; background: var(--card); z-index: 10; padding: 12px 0; border-bottom: 1px solid var(--border);">
+            <div class="exam-banner">
                 <div>
-                    <h2>Online Multiple-Choice Assessment</h2>
-                    <small style="color: var(--muted);">Select the best answer for each question</small>
+                    <h2>Online Examination Assessment</h2>
+                    <small style="color: var(--muted);">All questions are mandatory</small>
                 </div>
-                <div id="timerBox" class="timer-box">
-                    <span>⏱️ Time Remaining:</span>
-                    <span id="timerDisplay" style="font-family: monospace; font-size: 18px;">{{ duration }}:00</span>
+                <div class="live-timer-badge" style="background:#fee2e2; padding: 10px 20px;">
+                    <span class="blinking-dot"></span>
+                    <span>EXAM TIME REMAINING:</span>
+                    <span class="timer-display" style="font-size: 24px;">59:59</span>
                 </div>
             </div>
 
@@ -239,71 +272,80 @@ HTML_TEMPLATE = '''
                     {% endfor %}
                 </div>
                 {% endfor %}
-                <button type="submit" class="btn" style="width: 100%; font-size: 16px;">Submit Exam Assessment</button>
+                <button type="submit" class="btn" style="width: 100%; font-size: 16px; padding: 14px;">Submit Examination</button>
             </form>
-
-            <script>
-                // Live Running Countdown Timer
-                let totalSeconds = {{ duration }} * 60;
-                const timerDisplay = document.getElementById("timerDisplay");
-                const timerBox = document.getElementById("timerBox");
-                const examForm = document.getElementById("examForm");
-
-                function updateCountdown() {
-                    if (totalSeconds <= 0) {
-                        clearInterval(timerInterval);
-                        timerDisplay.innerText = "00:00";
-                        alert("Time is up! Your examination will be submitted automatically.");
-                        examForm.submit();
-                        return;
-                    }
-
-                    totalSeconds--;
-
-                    let minutes = Math.floor(totalSeconds / 60);
-                    let seconds = totalSeconds % 60;
-
-                    let formattedMin = String(minutes).padStart(2, '0');
-                    let formattedSec = String(seconds).padStart(2, '0');
-
-                    timerDisplay.innerText = ${formattedMin}:;
-
-                    // Warning state when less than 5 minutes remaining
-                    if (totalSeconds <= 300) {
-                        timerBox.classList.add("warning");
-                    }
-                }
-
-                const timerInterval = setInterval(updateCountdown, 1000);
-            </script>
         </div>
 
         {% elif page == "result" %}
         <div class="result-box">
             <h2>Assessment Evaluation Result</h2>
-            <p style="color: var(--muted);">Candidate: <strong>{{ user.name }}</strong></p>
+            <p style="color: var(--muted); margin-top: 4px;">Candidate: <strong>{{ user.name }}</strong></p>
             
             <div class="result-score {{ 'passed' if passed else 'failed' }}">
                 {{ score }}%
             </div>
             
-            <h3 class="{{ 'passed' if passed else 'failed' }}">
+            <h3 class="{{ 'passed' if passed else 'failed' }}" style="font-size: 22px;">
                 {% if passed %}
-                    ✅ PASSED (Requirement: {{ pass_pct }}%)
+                    ✅ PASSED (Qualifying: {{ pass_pct }}%)
                 {% else %}
-                    ❌ FAILED (Requirement: {{ pass_pct }}%)
+                    ❌ FAILED (Qualifying: {{ pass_pct }}%)
                 {% endif %}
             </h3>
 
             <p style="margin: 20px 0; color: var(--muted);">
-                Answer evaluation performed via scoring engine (<code>scoring.py</code>).
+                Grading evaluated accurately using the <code>scoring.py</code> engine.
             </p>
 
-            <a href="/exam" class="btn">Retake Exam</a>
+            <a href="/reset-timer" class="btn">Retake Exam (Reset Timer)</a>
             <a href="/logout" class="btn btn-logout">Sign Out</a>
         </div>
         {% endif %}
     </div>
+
+    <!-- Active Real-Time Ticking Countdown Engine -->
+    <script>
+        (function() {
+            const initialMinutes = {{ duration }};
+            let totalSeconds = sessionStorage.getItem("exam_time_remaining");
+            
+            if (!totalSeconds || isNaN(totalSeconds) || parseInt(totalSeconds, 10) <= 0) {
+                totalSeconds = initialMinutes * 60;
+                sessionStorage.setItem("exam_time_remaining", totalSeconds);
+            } else {
+                totalSeconds = parseInt(totalSeconds, 10);
+            }
+
+            function tick() {
+                if (totalSeconds <= 0) {
+                    totalSeconds = 0;
+                    sessionStorage.removeItem("exam_time_remaining");
+                    document.querySelectorAll(".timer-display").forEach(el => el.innerText = "00:00");
+                    const form = document.getElementById("examForm");
+                    if (form) {
+                        alert("Time has expired! Automatically submitting your assessment.");
+                        form.submit();
+                    }
+                    return;
+                }
+
+                totalSeconds--;
+                sessionStorage.setItem("exam_time_remaining", totalSeconds);
+
+                const mins = Math.floor(totalSeconds / 60);
+                const secs = totalSeconds % 60;
+                const formatted = String(mins).padStart(2, '0') + ":" + String(secs).padStart(2, '0');
+
+                document.querySelectorAll(".timer-display").forEach(el => {
+                    el.innerText = formatted;
+                });
+            }
+
+            // Immediately execute tick so it visibly decrements right upon page load
+            tick();
+            setInterval(tick, 1000);
+        })();
+    </script>
 </body>
 </html>
 '''
@@ -342,6 +384,15 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("index"))
+
+@app.route("/reset-timer")
+def reset_timer():
+    return '''
+    <script>
+        sessionStorage.removeItem("exam_time_remaining");
+        window.location.href = "/exam";
+    </script>
+    '''
 
 @app.route("/exam")
 def exam():
